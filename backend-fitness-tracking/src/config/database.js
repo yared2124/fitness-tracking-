@@ -17,13 +17,14 @@ const promisePool = pool.promise();
 
 // Function to test the database connection
 export const connectDB = async () => {
+  console.log("Attempting to connect to MySQL...");
   try {
     const connection = await promisePool.getConnection();
     console.log("MySQL connected successfully");
-    connection.release(); // Release connection back to pool
+    connection.release();
   } catch (error) {
-    console.error(`MySQL connection error: ${error.message}`);
-    process.exit(1); // Exit if database is unavailable
+    console.error("MySQL connection error details:", error.message);
+    process.exit(1);
   }
 };
 
