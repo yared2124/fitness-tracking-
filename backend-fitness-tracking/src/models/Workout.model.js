@@ -43,43 +43,40 @@ export const Workout = {
   },
 
   // Get all workouts for a user (with optional date filter)
-  findByUserId: async (userId, { startDate, endDate } = {}) => {
-    let query = `
-      SELECT w.id, w.workout_date as date, w.notes, w.created_at,
-             JSON_ARRAYAGG(
-               JSON_OBJECT(
-                 'name', e.name,
-                 'sets', e.sets,
-                 'reps', e.reps,
-                 'weight', e.weight,
-                 'duration', e.duration_seconds
-               )
-             ) as exercises
-      FROM workouts w
-      LEFT JOIN exercises e ON w.id = e.workout_id
-      WHERE w.user_id = ?
-    `;
-    const params = [userId];
+  findById: async (id, userId) => {
+    const [rows] = await promisePool.execute(
+      `SELECT w.id, w.workout_date as date, w.notes,
+            JSON_ARRAYAGG(
+              JSON_OBJECT(
+                'id', e.id,
+                'name', e.name,
+                'sets', e.sets,
+                'reps', e.reps,
+                'weight', e.weight,
+                'duration', e.duration_seconds
+              )
+            ) as exercises
+     FROM workouts w
+     LEFT JOIN exercises e ON w.id = e.workout_id
+     WHERE w.id = ? AND w.user_id = ?
+     GROUP BY w.id`,
+      [id, userId],
+    );
+    if (rows.length === 0) return null;
 
-    if (startDate) {
-      query += " AND w.workout_date >= ?";
-      params.push(startDate);
+    let exercises = rows[0].exercises;
+    if (exercises) {
+      exercises =
+        typeof exercises === "string" ? JSON.parse(exercises) : exercises;
+      exercises = exercises.filter((e) => e.name !== null);
+    } else {
+      exercises = [];
     }
-    if (endDate) {
-      query += " AND w.workout_date <= ?";
-      params.push(endDate);
-    }
 
-    query += " GROUP BY w.id ORDER BY w.workout_date DESC";
-
-    const [rows] = await promisePool.execute(query, params);
-    // MySQL returns JSON as string; parse it and filter out null entries
-    return rows.map((row) => ({
-      ...row,
-      exercises: row.exercises
-        ? JSON.parse(row.exercises).filter((e) => e.name !== null)
-        : [],
-    }));
+    return {
+      ...rows[0],
+      exercises,
+    };
   },
 
   // Get a single workout by ID (ensure it belongs to user)
